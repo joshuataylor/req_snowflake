@@ -8,7 +8,7 @@ defmodule ReqSnowflakeLogin do
   alias Req.Request
   alias ReqSnowflake.Snowflake
 
-  @allowed_options ~w(username password account_name region warehouse role database schema query_tag rows_per_resultset statement_timeout_in_seconds, application_name)a
+  @allowed_options ~w(username password account_name region warehouse role database schema query_tag rows_per_resultset statement_timeout_in_seconds application_name)a
 
   @doc """
   Attaches to Req request, used for logging into Snowflake.

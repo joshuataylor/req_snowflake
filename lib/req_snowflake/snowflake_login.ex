@@ -46,7 +46,7 @@ defmodule ReqSnowflake.SnowflakeLogin do
 
   # Something unexpected happened, such as the server being down, timeout, etc.
   # Probably wise to later bubble this back up to the user?
-  defp decode(error), do: RuntimeError.exception(error)
+  defp decode_response(error), do: RuntimeError.exception(error)
 
   @spec build_snowflake_login(
           database: String.t(),
@@ -60,36 +60,35 @@ defmodule ReqSnowflake.SnowflakeLogin do
   # This will soon need to support many options, so it's moved to its own function.
   # Full list of parameters needed to be supported: https://docs.snowflake.com/en/sql-reference/parameters.html
   defp build_snowflake_login(options) do
-    d =
-      %{
-        data: %{
-          ACCOUNT_NAME: options[:account_name],
-          PASSWORD: options[:password],
-          # This way we get JSON results
-          CLIENT_APP_ID: "JavaScript",
-          # Version supporting JSON results
-          CLIENT_APP_VERSION: "1.5.3",
-          LOGIN_NAME: options[:username],
-          SESSION_PARAMETERS: %{
-            VALIDATE_DEFAULT_PARAMETERS: true,
-            QUOTED_IDENTIFIERS_IGNORE_CASE: true
-          },
-          CLIENT_ENVIRONMENT: %{
-            tracing: "DEBUG",
-            OS: "Linux",
-            OCSP_MODE: "FAIL_OPEN",
-            APPLICATION: Keyword.get(options, :application_name, "req_snowflake"),
-            serverURL:
-              "https://#{options[:account_name]}.#{options[:region]}.snowflakecomputing.com",
-            role: options[:role],
-            user: options[:username],
-            account: options[:account_name]
-          }
+    %{
+      data: %{
+        ACCOUNT_NAME: options[:account_name],
+        PASSWORD: options[:password],
+        # This way we get JSON results
+        CLIENT_APP_ID: "JavaScript",
+        # Version supporting JSON results
+        CLIENT_APP_VERSION: "1.5.3",
+        LOGIN_NAME: options[:username],
+        SESSION_PARAMETERS: %{
+          VALIDATE_DEFAULT_PARAMETERS: true,
+          QUOTED_IDENTIFIERS_IGNORE_CASE: true
+        },
+        CLIENT_ENVIRONMENT: %{
+          tracing: "DEBUG",
+          OS: "Linux",
+          OCSP_MODE: "FAIL_OPEN",
+          APPLICATION: Keyword.get(options, :application_name, "req_snowflake"),
+          serverURL:
+            "https://#{options[:account_name]}.#{options[:region]}.snowflakecomputing.com",
+          role: options[:role],
+          user: options[:username],
+          account: options[:account_name]
         }
       }
-      |> add_client_environment(:schema, Keyword.get(options, :schema))
-      |> add_client_environment(:warehouse, Keyword.get(options, :warehouse))
-      |> add_client_environment(:database, Keyword.get(options, :database))
+    }
+    |> add_client_environment(:schema, Keyword.get(options, :schema))
+    |> add_client_environment(:warehouse, Keyword.get(options, :warehouse))
+    |> add_client_environment(:database, Keyword.get(options, :database))
   end
 
   defp add_client_environment(data, _key, nil), do: data
