@@ -7,11 +7,17 @@ defmodule ReqSnowflake.MixProject do
   def project do
     [
       app: :req_snowflake,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
-      aliases: aliases()
+      aliases: aliases(),
+      docs: docs(),
+      preferred_cli_env: [
+        "test.all": :test,
+        docs: :docs,
+        "hex.publish": :docs
+      ]
     ]
   end
 

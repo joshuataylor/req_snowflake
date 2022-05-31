@@ -47,7 +47,6 @@ Req.new()
   database: "mydb", # optional
   schema: "myschema" # optional
 )
-|> Req.post!(snowflake_query: "select L_ORDERKEY, L_PARTKEY from snowflake_sample_data.tpch_sf1.lineitem limit 2").body
 |> Req.post!(
   snowflake_query: "INSERT INTO \"foo\".\"bar\".\"baz\" (\"hello\") VALUES (?)",
   bindings: %{"1" => %{type: "TEXT", value: "xxx"}}

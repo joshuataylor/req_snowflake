@@ -2,6 +2,11 @@ defmodule ReqSnowflakeLogin.LoginIntegrationTest do
   use ExUnit.Case, async: false
   @moduletag :integration
 
+  setup do
+    :application.unset_env(:req_snowflake, :snowflake_hostname)
+    :application.unset_env(:req_snowflake, :snowflake_url)
+  end
+
   test "Can login to Snowflake using valid credentials" do
     username = System.get_env("SNOWFLAKE_USERNAME")
     password = System.get_env("SNOWFLAKE_PASSWORD")
@@ -26,7 +31,7 @@ defmodule ReqSnowflakeLogin.LoginIntegrationTest do
       )
       |> Req.post!(
         url:
-          "https://#{account_name}.#{region}.snowflakecomputing.com/console/bootstrap-data-request",
+          "https://#{ReqSnowflake.Snowflake.snowflake_host(account_name, region)}/console/bootstrap-data-request",
         json: %{"dataKinds" => ["DATABASES"]}
       )
 
@@ -52,7 +57,7 @@ defmodule ReqSnowflakeLogin.LoginIntegrationTest do
       )
       |> Req.post!(
         url:
-          "https://#{account_name}.#{region}.snowflakecomputing.com/console/bootstrap-data-request",
+          "https://#{ReqSnowflake.Snowflake.snowflake_host(account_name, region)}/console/bootstrap-data-request",
         json: %{"dataKinds" => ["DATABASES"]}
       )
     end

@@ -1,14 +1,17 @@
 defmodule ReqSnowflake.InsertTest do
-  use ExUnit.Case, async: true
-  @moduletag :integration
+  use ExUnit.Case, async: false
   alias ReqSnowflake.Result
 
-  test "Can insert to Snowflake" do
+  setup do
     bypass = Bypass.open()
     Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
     Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
     Application.put_env(:req_snowflake, :snowflake_uuid, "0000000-0000-0000-0000-000000000000")
 
+    {:ok, %{bypass: bypass}}
+  end
+
+  test "Can insert to Snowflake", %{bypass: bypass} do
     Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
       File.read!(
         Path.join([
@@ -55,7 +58,6 @@ defmodule ReqSnowflake.InsertTest do
              success: true
            }
   end
-
 
   defp json(data, conn, status) do
     conn

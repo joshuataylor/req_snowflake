@@ -71,14 +71,9 @@ defmodule ReqSnowflake do
     |> Request.append_response_steps(snowflake_decode_response: &decode/1)
   end
 
-  defp run(
-         %Request{
-           options:
-             %{account_name: account_name, region: region, snowflake_query: query} = options
-         } = request
-       ) do
-    token = ReqSnowflake.SnowflakeLogin.get_snowflake_login_token(options)
-    base_url = Snowflake.snowflake_url(account_name, region)
+  defp run(%Request{options: %{snowflake_query: query}} = request) do
+    token = ReqSnowflake.SnowflakeLogin.get_snowflake_login_token(request.options)
+    base_url = Snowflake.snowflake_url(request.options[:account_name], request.options[:region])
 
     %{request | url: URI.parse(snowflake_query_url(base_url))}
     |> Request.merge_options(json: snowflake_query_body(query))
@@ -227,7 +222,6 @@ defmodule ReqSnowflake do
   defp s3_get_json(url, encryption_key, encryption_key_md5) do
     Req.new(url: url)
     |> Request.put_header("accept", "application/snowflake")
-    |> Request.put_header("Accept-Encoding", "gzip,deflate")
     |> Request.put_header("x-amz-server-side-encryption-customer-key", encryption_key)
     |> Request.put_header("x-amz-server-side-encryption-customer-key-md5", encryption_key_md5)
     |> Req.get!()

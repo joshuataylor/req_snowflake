@@ -1,9 +1,5 @@
 defmodule ReqSnowflakeLogin do
-  @moduledoc """
-  `Req` plugin for [Snowflake](https://www.snowflake.com), used for logging into Snowflake.
-  Right now only username/password authentication is supported, with [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro.html),
-  [Key Pair](https://docs.snowflake.com/en/user-guide/key-pair-auth.html) and others to come.
-  """
+  @moduledoc false
 
   alias Req.Request
   alias ReqSnowflake.Snowflake
@@ -43,12 +39,12 @@ defmodule ReqSnowflakeLogin do
   defp auth_snowflake(
          %{
            url: %URI{host: host},
-           options: %{account_name: account_name, region: region} = options
+           options: %{account_name: account_name, region: region}
          } = request
        ) do
     # Since we can't get the host before now, we have to check here.
     if Snowflake.snowflake_host(account_name, region) == host do
-      keyword_options = Keyword.new(options)
+      keyword_options = Keyword.new(request.options)
       token = ReqSnowflake.SnowflakeLogin.get_snowflake_login_token(keyword_options)
 
       return_token(request, token)

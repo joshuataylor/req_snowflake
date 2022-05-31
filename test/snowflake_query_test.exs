@@ -1,13 +1,16 @@
 defmodule ReqSnowflake.QueryTest do
-  use ExUnit.Case, async: true
-  @moduletag :integration
+  use ExUnit.Case, async: false
 
-  test "Can query Snowflake with a valid query" do
+  setup do
     bypass = Bypass.open()
     Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
     Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
     Application.put_env(:req_snowflake, :snowflake_uuid, "0000000-0000-0000-0000-000000000000")
 
+    {:ok, %{bypass: bypass}}
+  end
+
+  test "Can query Snowflake with a valid query", %{bypass: bypass} do
     Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
       File.read!(
         Path.join([
@@ -108,12 +111,7 @@ defmodule ReqSnowflake.QueryTest do
            }
   end
 
-  test "Can query and get data from S3" do
-    bypass = Bypass.open()
-    Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
-    Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
-    Application.put_env(:req_snowflake, :snowflake_uuid, "0000000-0000-0000-0000-000000000000")
-
+  test "Can query and get data from S3", %{bypass: bypass} do
     Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
       File.read!(
         Path.join([
