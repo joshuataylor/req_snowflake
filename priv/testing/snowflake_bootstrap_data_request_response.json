@@ -1,0 +1,20 @@
+{
+  "code": null,
+  "data": {
+    "databases": [
+      {
+        "createdOn": 1111111111111,
+        "id": 11111111,
+        "name": "SNOWFLAKE_SAMPLE_DATA",
+        "providerName": null
+      }
+    ],
+    "extraConsoleElements": [
+      "FOOBAR"
+    ],
+    "newNotificationCount": 0,
+    "serverVersion": "6.17.0"
+  },
+  "message": null,
+  "success": true
+}

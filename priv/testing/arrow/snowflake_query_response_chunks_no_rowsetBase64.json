@@ -1,0 +1,30 @@
+{
+  "data" : {
+    "parameters" : [{"name":"TIMESTAMP_OUTPUT_FORMAT","value":"YYYY-MM-DD HH24:MI:SS.FF3 TZHTZM"},{"name":"CLIENT_PREFETCH_THREADS","value":4},{"name":"TIME_OUTPUT_FORMAT","value":"HH24:MI:SS"},{"name":"TIMESTAMP_TZ_OUTPUT_FORMAT","value":""},{"name":"CLIENT_RESULT_CHUNK_SIZE","value":48},{"name":"CLIENT_SESSION_KEEP_ALIVE","value":false},{"name":"CLIENT_OUT_OF_BAND_TELEMETRY_ENABLED","value":false},{"name":"CLIENT_METADATA_USE_SESSION_DATABASE","value":false},{"name":"ENABLE_STAGE_S3_PRIVATELINK_FOR_US_EAST_1","value":false},{"name":"TIMESTAMP_NTZ_OUTPUT_FORMAT","value":"YYYY-MM-DD HH24:MI:SS.FF3"},{"name":"CLIENT_RESULT_PREFETCH_THREADS","value":1},{"name":"CLIENT_METADATA_REQUEST_USE_CONNECTION_CTX","value":false},{"name":"CLIENT_HONOR_CLIENT_TZ_FOR_TIMESTAMP_NTZ","value":true},{"name":"CLIENT_MEMORY_LIMIT","value":1536},{"name":"CLIENT_TIMESTAMP_TYPE_MAPPING","value":"TIMESTAMP_LTZ"},{"name":"TIMEZONE","value":"America/Los_Angeles"},{"name":"SNOWPARK_REQUEST_TIMEOUT_IN_SECONDS","value":86400},{"name":"CLIENT_RESULT_PREFETCH_SLOTS","value":2},{"name":"CLIENT_TELEMETRY_ENABLED","value":true},{"name":"CLIENT_USE_V1_QUERY_API","value":true},{"name":"CLIENT_DISABLE_INCIDENTS","value":true},{"name":"CLIENT_RESULT_COLUMN_CASE_INSENSITIVE","value":false},{"name":"BINARY_OUTPUT_FORMAT","value":"HEX"},{"name":"CLIENT_ENABLE_LOG_INFO_STATEMENT_PARAMETERS","value":false},{"name":"CLIENT_TELEMETRY_SESSIONLESS_ENABLED","value":true},{"name":"CLIENT_CONSENT_CACHE_ID_TOKEN","value":false},{"name":"CLIENT_FORCE_PROTECT_ID_TOKEN","value":true},{"name":"DATE_OUTPUT_FORMAT","value":"YYYY-MM-DD"},{"name":"CLIENT_STAGE_ARRAY_BINDING_THRESHOLD","value":65280},{"name":"CLIENT_SESSION_KEEP_ALIVE_HEARTBEAT_FREQUENCY","value":3600},{"name":"CLIENT_SESSION_CLONE","value":false},{"name":"AUTOCOMMIT","value":true},{"name":"TIMESTAMP_LTZ_OUTPUT_FORMAT","value":""} ],
+    "rowtype" : [{"name":"SF_BOOLEAN","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"boolean","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_VARCHAR","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"text","byteLength":16777216,"nullable":true,"collation":null,"length":16777216},{"name":"SF_INTEGER","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":0,"precision":38,"type":"fixed","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_FLOAT","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"real","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_FLOAT_TWO_PRECISION","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"real","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_DECIMAL_38_2","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":2,"precision":38,"type":"fixed","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_TIMESTAMP_NTZ","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":9,"precision":0,"type":"timestamp_ntz","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_TIMESTAMP_LTZ","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":9,"precision":0,"type":"timestamp_ltz","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_TIMESTAMP","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":9,"precision":0,"type":"timestamp_ntz","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_DATE","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"date","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_VARIANT_JSON","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"variant","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_ARRAY","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"array","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_OBJECT","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"object","byteLength":null,"nullable":true,"collation":null,"length":null},{"name":"SF_HEX_BINARY","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"binary","byteLength":8388608,"nullable":true,"collation":null,"length":8388608},{"name":"SF_BASE64_BINARY","database":"FOO","schema":"BAR","table":"TEST_DATAS","scale":null,"precision":null,"type":"binary","byteLength":8388608,"nullable":true,"collation":null,"length":8388608} ],
+    "rowsetBase64" : "",
+    "qrmk" : "gUjLzPx5WRVkuZC24F/UPnhyoXD1ayrnTUviGAnuKLc=",
+    "chunkHeaders" : {
+      "x-amz-server-side-encryption-customer-key" : "gUjLzPx5WRVkuZC24F/UPnhyoXD1ayrnTUviGAnuKLc=",
+      "x-amz-server-side-encryption-customer-key-md5" : "/TqLBt87JnfL7AT76o0zRg=="
+    },
+    "chunks" : [],
+    "total" : 5000,
+    "returned" : 5000,
+    "queryId" : "01a4bd8e-3200-f00c-0000-c20d00024bd2",
+    "databaseProvider" : null,
+    "finalDatabaseName" : "SNOWFLAKE_SAMPLE_DATA",
+    "finalSchemaName" : "TPCH_SF1",
+    "finalWarehouseName" : "COMPUTE_WH",
+    "finalRoleName" : "ACCOUNTADMIN",
+    "numberOfBinds" : 0,
+    "arrayBindSupported" : false,
+    "statementTypeId" : 4096,
+    "version" : 1,
+    "sendResultTime" : 1654418791312,
+    "queryResultFormat" : "arrow"
+  },
+  "code" : null,
+  "message" : null,
+  "success" : true
+}

@@ -1,0 +1,6 @@
+deps
+_build
+priv/native/libsnowflake_arrow.so
+native/snowflake_arrow/target
+native/snowflake_arrow/tests
+.idea
