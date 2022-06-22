@@ -2,9 +2,15 @@
   <a href="https://github.com/joshuataylor/req_snowflake">
     <img alt="req_snowflake" src="https://user-images.githubusercontent.com/225131/175007256-0f3e5afd-8e90-47ad-a836-a38c57bf28ec.png" width="50">
   </a>
-  <div style="text-align: center">req_snowflake</div>
 </p>
 
+# req_snowflake
+
+**NOTE: THIS DRIVER/CONNECTOR IS NOT OFFICIALLY AFFILIATED WITH SNOWFLAKE, NOR HAS OFFICIAL SUPPORT FROM THEM.**
+
+An Elixir driver for [Snowflake](https://www.snowflake.com/), the cloud data platform.
+
+Also has support for both pure-Elixir using JSON, or decoding Arrow files via [snowflake_arrow_elixir](), a Rust library which decodes the Arrow streaming file into Elixir.
 
 ## Table of Contents
 
@@ -15,13 +21,6 @@
 - [Short term Roadmap](#short-term-roadmap)
 - [Medium term roadmap](#medium-term-roadmap)
 - [Thanks](#thanks)
-
-
-**NOTE: THIS DRIVER/CONNECTOR IS NOT OFFICIALLY AFFILIATED WITH SNOWFLAKE, NOR HAS OFFICIAL SUPPORT FROM THEM.**
-
-An Elixir driver for [Snowflake](https://www.snowflake.com/), the cloud data platform.
-
-Also has support for both pure-Elixir using JSON, or decoding Arrow files via [snowflake_arrow_elixir](), a Rust library which decodes the Arrow streaming file into Elixir.
 
 ## Usage
 
@@ -100,51 +99,86 @@ Note that this can be done on an account or if needed on a session level which y
 ## Options
 There are a lot of options that you can pass in, and you can also pass in [Snowflake Session Parameters](https://docs.snowflake.com/en/sql-reference/parameters.html) as documented below.
 
-- snowflake_query 
+- snowflake_query *string* **required**
+
   Your snowflake query. `select L_ORDERKEY, L_PARTKEY from snowflake_sample_data.tpch_sf1.lineitem limit 2`
-- username
+
+- username *string* **required**
+
   Your snowflake username.
-- password
+
+- password *string* **required**
+
   Your snowflake password.
-- account_name
+
+- account_name  *string* **required**
+
   Your account name, this is found before the region name in the URL. `https://abc1234.us-east-1.snowflakecomputing.com` would be `abc1234` .
-- region
-Your snowflake region, this is found after your account name.
-- arrow (true/false) *optional*
+
+- region *string* **required**
+
+  Your snowflake region, this is found after your account name.
+
+- arrow (boolean) *optional*
+
   Whether or not to use Arrow. You must have snowflake_arrow included in your project for this to work.
 - cache_token *optional*
+
   Cache the login token between queries, for up to 10 minutes. 10 minutes is the standard login token time for Snowflake.
   If you change a parameter (apart from the query) this will relog you in.
 - warehouse *optional*
   The warehouse to use. If none is provided, will use the users default warehouse
+
 - role *optional*
+
   The role to use. If none is provided, will use the users default role
 - database *optional*
+
   The database to use. If none is provided, will use the users default database
 - schema **string** *optional*
+
   The schema to use. If none is provided, will use the users default schema
 - application_name **string** *optional*
+
   Application name to pass. By default will not use an application name.
 - bindings **map** *optional*
+
   Any bindings to pass.
 - session_parameters **map** *optional*
+
   You can pass any session parameters from https://docs.snowflake.com/en/sql-reference/parameters.html.
+
   Example: `session_parameters: %{ROWS_PER_RESULTSET: 50}` will return 50 results only.
+
 - parallel_downloads **integer** *optional*
+
   How many parallel downloads to perform for s3. This defaults to 5, which is the default for other connectors.
 - async **boolean** *optional*
+
   Will run the query in async mode, returning you the query ID.
+
 - async_poll **boolean** *optional*
-  Will run the query in async mode, then poll every 5 seconds (unless defined by `async_poll_interval`) for the result.
-- async_poll_interval *optional*
-  Will run the query in async mode, then poll every 5 seconds (unless defined by `async_poll_interval`) for the result.
-- async_poll_timeout *optional*
+
+  Will run the query in async mode, then poll every 5000ms (unless defined by `async_poll_interval`) for the result.
+
+- async_poll_interval **integer**  *optional*
+
+  Will run the query in async mode, then poll every interval milliseconds.
+
+- async_poll_timeout **integer** *optional*
+
   How many times it will try to poll for the result before giving up.
+
 - download_chunks **boolean** *optional*
+
   Whether to download the chunks or just return the base64.
+
 - return_dataframe **boolean** *optional*
+
   Whether to return the results as rows when using Arrow or return the dataframe.
+
 - json_library **module** *optional*
+
   When decoding JSON, jiffy has shown to be 2x faster and use less memory than Jason for larger JSON blobs, as Snowflake can send large JSON files.
   Examples: `json_library: Jason` or `json_library: :jiffy`. :jiffy is an atom because it's an Erlang library.
   Defaults to JSON.
