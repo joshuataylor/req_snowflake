@@ -1,11 +1,23 @@
-# ReqSnowflake
-![](req_snowflake.png | width=100)
+<p align="center">
+  <a href="https://github.com/joshuataylor/req_snowflake">
+    <img alt="req_snowflake" src="https://user-images.githubusercontent.com/225131/175007256-0f3e5afd-8e90-47ad-a836-a38c57bf28ec.png" width="50">
+  </a>
+  <div style="text-align: center">req_snowflake</div>
+</p>
 
-[Req](https://github.com/wojtekmach/req) plugin for [Snowflake](https://www.snowflake.com).
 
-**WIP, NOT PRODUCTION READY YET**
+## Table of Contents
 
-NOTE: THIS DRIVER/CONNECTOR IS NOT OFFICIALLY AFFILIATED WITH SNOWFLAKE, NOR HAS OFFICIAL SUPPORT FROM THEM.
+- [Usage](#usage)
+- [What this is](#what-this-is)
+- [Features](#features)
+- [Options](#options)
+- [Short term Roadmap](#short-term-roadmap)
+- [Medium term roadmap](#medium-term-roadmap)
+- [Thanks](#thanks)
+
+
+**NOTE: THIS DRIVER/CONNECTOR IS NOT OFFICIALLY AFFILIATED WITH SNOWFLAKE, NOR HAS OFFICIAL SUPPORT FROM THEM.**
 
 An Elixir driver for [Snowflake](https://www.snowflake.com/), the cloud data platform.
 
