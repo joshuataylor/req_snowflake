@@ -37,7 +37,7 @@ defmodule ReqSnowflake.ArrowIntegrationQueryTest do
           "select row_number, sf_boolean, sf_varchar, sf_integer, sf_float, sf_float_two_precision, sf_decimal_38_2, sf_timestamp_ntz, sf_timestamp_ltz, sf_timestamp, sf_date, sf_variant_json, sf_array, sf_object, sf_hex_binary, sf_base64_binary from foo.bar.test_data order by row_number limit 100;"
       )
 
-    assert response.body.num_rows == 100
+    assert response.body.total_rows == 100
 
     assert response.body.columns == [
              "ROW_NUMBER",

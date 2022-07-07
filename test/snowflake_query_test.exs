@@ -2,10 +2,6 @@ defmodule ReqSnowflake.QueryTest do
   use ExUnit.Case, async: false
 
   setup do
-    Application.delete_env(:req_snowflake, :snowflake_hostname)
-    Application.delete_env(:req_snowflake, :snowflake_url)
-    Application.delete_env(:req_snowflake, :snowflake_uuid)
-
     bypass = Bypass.open()
     Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
     Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
@@ -73,7 +69,7 @@ defmodule ReqSnowflake.QueryTest do
              ],
              messages: [],
              metadata: [],
-             num_rows: 2,
+             total_rows: 2,
              rows: [
                [
                  3_000_001,
@@ -214,7 +210,7 @@ defmodule ReqSnowflake.QueryTest do
              ],
              messages: [],
              metadata: [],
-             num_rows: 4,
+             total_rows: 4,
              rows: [
                [
                  3_003_586,

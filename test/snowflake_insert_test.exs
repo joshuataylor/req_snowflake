@@ -51,9 +51,10 @@ defmodule ReqSnowflake.InsertTest do
 
     assert response.body == %Result{
              columns: ["number of rows inserted"],
-             messages: [],
-             metadata: [],
-             num_rows: 1,
+             messages: nil,
+             metadata: nil,
+             format: "json",
+             total_rows: 1,
              rows: [[1]],
              success: true
            }
