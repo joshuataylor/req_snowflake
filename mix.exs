@@ -41,7 +41,7 @@ defmodule ReqSnowflake.MixProject do
     [
       {:decimal, "~> 2.0"},
       {:req, "~> 0.3.0"},
-      {:snowflake_arrow, path: "../snowflake_arrow"},
+      {:snowflake_arrow, github: "joshuataylor/snowflake_arrow"},
       {:table, "~> 0.1.2", optional: true},
       {:jason, "~> 1.2", optional: true},
       {:jiffy, "~> 1.1", optional: true},
