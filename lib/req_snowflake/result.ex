@@ -2,14 +2,13 @@ defmodule ReqSnowflake.Result do
   @type t :: %__MODULE__{
           columns: nil | [String.t()],
           rows: [list()],
-          dataframe: nil,
           total_rows: nil | integer,
+          options: nil | map(),
           metadata: [map()],
           messages: [map()],
           success: boolean,
           format: nil | String.t(),
           query_id: nil | String.t(),
-          dataframe: nil,
           chunks: [%ReqSnowflake.Chunk{}],
           chunk_data: %{md5: String.t(), key: String.t()} | nil,
           initial_rowset: nil | [list()]
@@ -23,10 +22,10 @@ defmodule ReqSnowflake.Result do
             success: false,
             format: nil,
             query_id: nil,
-            dataframe: nil,
             chunks: nil,
             initial_rowset: nil,
-            chunk_data: nil
+            chunk_data: nil,
+            options: nil
 
   defimpl Table.Reader do
     def init(
@@ -45,13 +44,14 @@ defmodule ReqSnowflake.Result do
 
   defimpl Enumerable do
     alias ReqSnowflake.FileCache
+    alias ReqSnowflake.JSONResponseMapping
 
     def count(result), do: {:ok, result.total_rows}
 
     def member?(_result, _element), do: {:error, __MODULE__}
 
     # Arrow support
-    def reduce(%ReqSnowflake.Result{format: "arrow"} = result, acc, fun) do
+    def reduce(%ReqSnowflake.Result{} = result, acc, fun) do
       result
       |> stream_chunks()
       |> Enumerable.reduce(acc, fun)
@@ -71,13 +71,12 @@ defmodule ReqSnowflake.Result do
               result.format,
               url,
               result.chunk_data.key,
-              result.chunk_data.md5
+              result.chunk_data.md5,
+              Map.get(result.options, :cache_result, false)
             )
           end)
 
-        Stream.concat(stream1, stream2)
-        |> Stream.drop(start)
-        |> Enum.take(length)
+        Stream.concat(stream1, stream2) |> Stream.drop(start) |> Enum.take(length)
       end
 
       {:ok, result.total_rows, slicing_fun}
@@ -96,28 +95,44 @@ defmodule ReqSnowflake.Result do
       |> Enum.zip_with(& &1)
     end
 
+    @spec convert_to_rows(binary(), String.t()) :: list()
+    defp convert_to_rows(chunked_data, "json") do
+      JSONResponseMapping.json_decode!(chunked_data)
+      |> Enum.zip_with(& &1)
+    end
+
     # Streaming chunks is the same for both JSON and Arrow.
     defp stream_chunks(%{
            format: format,
            query_id: query_id,
            chunks: chunks,
-           chunk_data: %{md5: md5, key: key}
+           chunk_data: %{md5: md5, key: key},
+           options: %{cache_results: cache}
          }) do
       chunks
-      # This step has been split so we can do parallel downloading in the future.
-      |> Stream.flat_map(fn %{url: url} -> get_chunk(query_id, format, url, key, md5) end)
+      |> Stream.flat_map(fn %{url: url} -> get_chunk(query_id, format, url, key, md5, cache) end)
     end
 
     @spec chunks_for_slice(list(%ReqSnowflake.Chunk{}), integer, integer) ::
             list(%ReqSnowflake.Chunk{})
-    defp chunks_for_slice(chunks, start, length) do
-      Enum.filter(chunks, fn chunk -> chunk.row_from <= start end)
+    defp chunks_for_slice(chunks, start, length) when length(chunks) > 0 do
+      Stream.filter(chunks, fn chunk -> chunk.row_from <= start + 1 end)
     end
+
+    defp chunks_for_slice(chunks, start, length), do: []
 
     # Caching the chunks is the same for both JSON and Arrow.
     # We cache the output of the conversion, so we don't need to convert it again.
-    @spec get_chunk(String.t(), String.t(), String.t(), String.t(), String.t()) :: list()
-    defp get_chunk(query_id, format, url, key, md5) do
+    @spec get_chunk(String.t(), String.t(), String.t(), String.t(), String.t(), boolean) ::
+            list()
+    defp get_chunk(query_id, format, url, key, md5, false) do
+      ReqSnowflake.get_s3(url, key, md5)
+      |> convert_to_rows(format)
+    end
+
+    @spec get_chunk(String.t(), String.t(), String.t(), String.t(), String.t(), boolean) ::
+            list()
+    defp get_chunk(query_id, format, url, key, md5, true) do
       data_file_name = url |> String.split("/") |> List.last()
       tmp_file = Path.join(System.tmp_dir!(), "#{query_id}_#{data_file_name}")
 
@@ -125,8 +140,7 @@ defmodule ReqSnowflake.Result do
         file
       else
         _ ->
-          ReqSnowflake.get_s3(url, key, md5)
-          |> convert_to_rows(format)
+          get_chunk(query_id, format, url, key, md5, false)
           |> ReqSnowflake.FileCache.maybe_write(tmp_file)
       end
     end

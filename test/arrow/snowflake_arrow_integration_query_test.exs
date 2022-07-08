@@ -1,5 +1,5 @@
 defmodule ReqSnowflake.ArrowIntegrationQueryTest do
-  use ExUnit.Case, async: false
+  use ReqSnowflake.SnowflakeCase, async: false
   @moduletag :integration
 
   setup do

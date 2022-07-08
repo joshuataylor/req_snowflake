@@ -1,36 +1,10 @@
 defmodule ReqSnowflake.ArrowQueryTest do
-  use ExUnit.Case, async: false
-
-  setup do
-    bypass = Bypass.open()
-    Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
-    Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
-    Application.put_env(:req_snowflake, :snowflake_uuid, "0000000-0000-0000-0000-000000000000")
-
-    {:ok, %{bypass: bypass}}
-  end
+  use ReqSnowflake.SnowflakeCase, async: false
+  import ReqSnowflake.SnowflakeTestHelpers
 
   test "Can query Snowflake with a valid query and get a response back without chunks and only rowsetBase64",
        %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "POST", "/queries/v1/query-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/arrow/snowflake_query_response_arrow_inline.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
+    query_bypass(bypass, "testing/arrow/snowflake_query_response_arrow_inline.json")
 
     response =
       Req.new()
@@ -88,16 +62,6 @@ defmodule ReqSnowflake.ArrowQueryTest do
   end
 
   test "Can query and get data from S3", %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
     # Add the chunks to be downloaded via Bypass
 
     chunks = [
@@ -121,48 +85,15 @@ defmodule ReqSnowflake.ArrowQueryTest do
       }
     ]
 
-    Bypass.expect(bypass, "POST", "/queries/v1/query-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/arrow/snowflake_query_response_chunks_no_rowsetBase64.json"
-        ])
-      )
-      |> Jason.decode!()
-      |> put_in(["data", "chunks"], chunks)
-      |> Jason.encode!()
-      |> json(conn, 200)
-    end)
+    query_bypass_chunks(
+      bypass,
+      "testing/arrow/snowflake_query_response_chunks_no_rowsetBase64.json",
+      chunks
+    )
 
-    Bypass.expect(bypass, "GET", "/s31", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/arrow/0.arrow"
-        ])
-      )
-      |> json_gzip(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "GET", "/s32", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/arrow/1.arrow"
-        ])
-      )
-      |> json_gzip(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "GET", "/s33", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/arrow/2.arrow"
-        ])
-      )
-      |> json_gzip(conn, 200)
-    end)
+    s3_bypass(bypass, "s31", "testing/arrow/0.arrow")
+    s3_bypass(bypass, "s32", "testing/arrow/1.arrow")
+    s3_bypass(bypass, "s33", "testing/arrow/2.arrow")
 
     response =
       Req.new()
@@ -205,25 +136,7 @@ defmodule ReqSnowflake.ArrowQueryTest do
   end
 
   test "Can query Snowflake and get correct records back in order", %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "POST", "/queries/v1/query-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/arrow/snowflake_spot_check_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
+    query_bypass(bypass, "testing/arrow/snowflake_spot_check_response.json")
 
     response =
       Req.new()
@@ -264,23 +177,111 @@ defmodule ReqSnowflake.ArrowQueryTest do
            ]
   end
 
-  # Snowflake sends back gzipped encoding, so gzip the response here we send back with bypass.
-  # Also send back some other headers s3 sends for goodluck.
-  defp json_gzip(data, conn, status) do
-    conn
-    |> Plug.Conn.put_resp_content_type("binary/octet-stream")
-    |> Plug.Conn.put_resp_header("content-encoding", "gzip")
-    |> Plug.Conn.put_resp_header("x-amz-id-2", "aaa")
-    |> Plug.Conn.put_resp_header("x-amz-request-id", "xxx")
-    |> Plug.Conn.put_resp_header("x-amz-server-side-encryption-customer-algorithm", "AES256")
-    |> Plug.Conn.put_resp_header("x-amz-server-side-encryption-customer-key-md5", "abcd")
-    |> Plug.Conn.put_resp_header("accept-ranges", "bytes")
-    |> Plug.Conn.send_resp(status, :zlib.gzip(data))
+  test "Can query Snowflake with a valid query and get a response back without chunks and only rowsetBase64 for table",
+       %{bypass: bypass} do
+    query_bypass(bypass, "testing/arrow/snowflake_query_response_arrow_inline.json")
+
+    assert Req.new()
+           |> ReqSnowflake.attach(
+             username: "myuser",
+             password: "hunter2",
+             account_name: "elixir",
+             region: "us-east-1",
+             warehouse: "compute_wh",
+             role: "somerole",
+             database: "snowflake_sample_data",
+             schema: "tpch_sf1",
+             arrow: true,
+             cache_token: false,
+             table: true
+           )
+           |> Req.post!(
+             snowflake_query: "select * from snowflake_sample_data.tpch_sf1.lineitem limit 2"
+           )
+           |> Map.get(:body)
+           |> Table.to_rows()
+           |> Enum.slice(0, 1) == [
+             %{
+               "SF_BOOLEAN" => false,
+               "SF_DATE" => nil,
+               "SF_DECIMAL_38_2" => nil,
+               "SF_FLOAT" => 16132.77511762,
+               "SF_FLOAT_TWO_PRECISION" => 29268.82,
+               "SF_INTEGER" => nil,
+               "SF_TIMESTAMP" => ~N[2022-08-25 07:38:33.438000],
+               "SF_TIMESTAMP_LTZ" => ~N[2023-11-21 06:47:35.438000],
+               "SF_TIMESTAMP_NTZ" => ~N[2022-10-28 16:14:06.438000],
+               "SF_VARCHAR" => "vRQOhzFFXN6eKG8ZJt2h",
+               "SF_ARRAY" => nil,
+               "SF_OBJECT" => "{\n  \"arr1_Ybboz\": 13,\n  \"zero\": 0\n}",
+               "SF_VARIANT_JSON" => "{\n  \"key_sDzOGefLLlcamCUIYwM8\": true\n}"
+             }
+           ]
   end
 
-  defp json(data, conn, status) do
-    conn
-    |> Plug.Conn.put_resp_content_type("application/json")
-    |> Plug.Conn.send_resp(status, data)
+  test "Can query and get data from S3 with table", %{bypass: bypass} do
+    chunks = [
+      %{
+        "url" => "http://127.0.0.1:#{bypass.port}/s31",
+        "rowCount" => 630,
+        "uncompressedSize" => 129_368,
+        "compressedSize" => 41971
+      },
+      %{
+        "url" => "http://127.0.0.1:#{bypass.port}/s32",
+        "rowCount" => 1876,
+        "uncompressedSize" => 376_080,
+        "compressedSize" => 124_150
+      },
+      %{
+        "url" => "http://127.0.0.1:#{bypass.port}/s33",
+        "rowCount" => 2494,
+        "uncompressedSize" => 505_712,
+        "compressedSize" => 172_230
+      }
+    ]
+
+    query_bypass_chunks(
+      bypass,
+      "testing/arrow/snowflake_query_response_chunks_no_rowsetBase64.json",
+      chunks
+    )
+
+    s3_bypass(bypass, "s31", "testing/arrow/0.arrow")
+
+    assert Req.new()
+           |> ReqSnowflake.attach(
+             username: "myuser",
+             password: "hunter2",
+             account_name: "elixir",
+             region: "us-east-1",
+             warehouse: "compute_wh",
+             role: "somerole",
+             database: "snowflake_sample_data",
+             schema: "tpch_sf1",
+             arrow: true,
+             cache_token: false,
+             table: true
+           )
+           |> Req.post!(snowflake_query: "select * from snowflake_sample_data.tpch_sf1.lineitem")
+           |> Map.get(:body)
+           |> Table.to_rows()
+           |> Enum.slice(0, 1) == [
+             %{
+               "SF_BOOLEAN" => false,
+               "SF_DATE" => nil,
+               "SF_DECIMAL_38_2" => 28584.17,
+               "SF_FLOAT" => 10266.7637929,
+               "SF_ARRAY" => nil,
+               "SF_FLOAT_TWO_PRECISION" => 16421.79,
+               "SF_INTEGER" => 9_500_348_786,
+               "SF_OBJECT" => "{\n  \"arr1_93JrD\": 13,\n  \"zero\": 0\n}",
+               "SF_TIMESTAMP" => ~N[2023-08-05 21:06:52.582000],
+               "SF_TIMESTAMP_LTZ" => ~N[2022-09-04 23:48:08.582000],
+               "SF_TIMESTAMP_NTZ" => ~N[2022-11-18 15:47:36.582000],
+               "SF_VARCHAR" => "5UEDwtdM5PtgdNtPY2jW",
+               "SF_VARIANT_JSON" => nil
+             }
+           ]
   end
 end

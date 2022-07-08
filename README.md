@@ -174,9 +174,13 @@ There are a lot of options that you can pass in, and you can also pass in [Snowf
 
   Whether to download the chunks or just return the base64.
 
-- return_results **boolean** *optional*
+- table **boolean** *optional*
 
-  If false, will not return any results. This is used when you want to pipe into something like Table. By default this is `true`. For kino_db, this is set as false.
+  If true, will return the results with the expectation you will use [table]() to process the results.
+  By default this is `false`. For kino_db, this is set as `true` as this uses Table by default.
+
+  If you are dealing with a lot of data, it's **highly recommended** to use Table as you can stream the chunks
+  out as you need them, saving you memory, CPU and bandwidth.
 
 - cache_results **boolean *optional*
 

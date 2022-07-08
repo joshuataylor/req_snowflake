@@ -3,6 +3,7 @@ defmodule ReqSnowflakeLogin.LoginIntegrationTest do
   @moduletag :integration
 
   setup do
+    # Ensure that we we are not using bypass.
     :application.unset_env(:req_snowflake, :snowflake_hostname)
     :application.unset_env(:req_snowflake, :snowflake_url)
   end
