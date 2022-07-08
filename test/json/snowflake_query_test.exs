@@ -1,39 +1,9 @@
 defmodule ReqSnowflake.QueryTest do
-  use ExUnit.Case, async: false
-
-  setup do
-    Application.delete_env(:req_snowflake, :snowflake_hostname)
-    Application.delete_env(:req_snowflake, :snowflake_url)
-    Application.delete_env(:req_snowflake, :snowflake_uuid)
-
-    bypass = Bypass.open()
-    Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
-    Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
-    Application.put_env(:req_snowflake, :snowflake_uuid, "0000000-0000-0000-0000-000000000000")
-
-    {:ok, %{bypass: bypass}}
-  end
+  use ReqSnowflake.SnowflakeCase, async: false
+  import ReqSnowflake.SnowflakeTestHelpers
 
   test "Can query Snowflake with a valid query", %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "POST", "/queries/v1/query-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_inline_query_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
+    query_bypass(bypass, "testing/snowflake_inline_query_response.json")
 
     response =
       Req.new()
@@ -53,6 +23,11 @@ defmodule ReqSnowflake.QueryTest do
       )
 
     assert response.body == %ReqSnowflake.Result{
+             format: "json",
+             initial_rowset: nil,
+             messages: nil,
+             metadata: nil,
+             query_id: "0000000-0000-0000-0000-000000000000",
              columns: [
                "L_ORDERKEY",
                "L_PARTKEY",
@@ -71,9 +46,7 @@ defmodule ReqSnowflake.QueryTest do
                "L_SHIPMODE",
                "L_COMMENT"
              ],
-             messages: [],
-             metadata: [],
-             num_rows: 2,
+             total_rows: 2,
              rows: [
                [
                  3_000_001,
@@ -117,16 +90,6 @@ defmodule ReqSnowflake.QueryTest do
   end
 
   test "Can query and get data from S3", %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
     # Add the chunks to be downloaded via Bypass
     chunks = [
       %{
@@ -143,38 +106,10 @@ defmodule ReqSnowflake.QueryTest do
       }
     ]
 
-    Bypass.expect(bypass, "POST", "/queries/v1/query-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_s3_query_response.json"
-        ])
-      )
-      |> Jason.decode!()
-      |> put_in(["data", "chunks"], chunks)
-      |> Jason.encode!()
-      |> json(conn, 200)
-    end)
+    query_bypass_chunks(bypass, "testing/snowflake_s3_query_response.json", chunks)
 
-    Bypass.expect(bypass, "GET", "/s31", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/s3/response_1.json"
-        ])
-      )
-      |> json_gzip(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "GET", "/s32", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/s3/response_2.json"
-        ])
-      )
-      |> json_gzip(conn, 200)
-    end)
+    s3_bypass(bypass, "s31", "testing/s3/response_1.json")
+    s3_bypass(bypass, "s32", "testing/s3/response_2.json")
 
     response =
       Req.new()
@@ -212,9 +147,11 @@ defmodule ReqSnowflake.QueryTest do
                "L_SHIPMODE",
                "L_COMMENT"
              ],
-             messages: [],
-             metadata: [],
-             num_rows: 4,
+             messages: nil,
+             metadata: nil,
+             total_rows: 4,
+             format: "json",
+             query_id: "01a49cd1-3200-eecb-0000-0000c20d9019",
              rows: [
                [
                  3_003_586,
@@ -330,25 +267,7 @@ defmodule ReqSnowflake.QueryTest do
   end
 
   test "Can perform an async query", %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
-    Bypass.expect(bypass, "POST", "/queries/v1/query-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_async_query_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
+    query_bypass(bypass, "testing/snowflake_async_query_response.json")
 
     response =
       Req.new()
@@ -384,23 +303,105 @@ defmodule ReqSnowflake.QueryTest do
            }
   end
 
-  # Snowflake sends back gzipped encoding, so gzip the response here we send back with bypass.
-  # Also send back some other headers s3 sends for goodluck.
-  defp json_gzip(data, conn, status) do
-    conn
-    |> Plug.Conn.put_resp_content_type("binary/octet-stream")
-    |> Plug.Conn.put_resp_header("content-encoding", "gzip")
-    |> Plug.Conn.put_resp_header("x-amz-id-2", "aaa")
-    |> Plug.Conn.put_resp_header("x-amz-request-id", "xxx")
-    |> Plug.Conn.put_resp_header("x-amz-server-side-encryption-customer-algorithm", "AES256")
-    |> Plug.Conn.put_resp_header("x-amz-server-side-encryption-customer-key-md5", "abcd")
-    |> Plug.Conn.put_resp_header("accept-ranges", "bytes")
-    |> Plug.Conn.send_resp(status, :zlib.gzip(data))
+  test "Can query Snowflake without chunks and get results back with table", %{bypass: bypass} do
+    query_bypass(bypass, "testing/snowflake_inline_query_response.json")
+
+    Req.new()
+    |> ReqSnowflake.attach(
+      username: "myuser",
+      password: "hunter2",
+      account_name: "elixir",
+      region: "us-east-1",
+      warehouse: "compute_wh",
+      role: "somerole",
+      database: "snowflake_sample_data",
+      schema: "tpch_sf1",
+      cache_token: false,
+      table: true
+    )
+    |> Req.post!(snowflake_query: "select * from snowflake_sample_data.tpch_sf1.lineitem limit 2")
+    |> Map.get(:body)
+    |> Table.to_rows()
+    |> Enum.slice(0, 1) == [
+      %{
+        "L_COMMENT" => "uriously silent patterns across the f",
+        "L_COMMITDATE" => ~D[1993-03-16],
+        "L_DISCOUNT" => "0.02",
+        "L_EXTENDEDPRICE" => "29048.80",
+        "L_LINENUMBER" => 1,
+        "L_LINESTATUS" => "F",
+        "L_ORDERKEY" => 3_000_001,
+        "L_PARTKEY" => 14406,
+        "L_QUANTITY" => "22.00",
+        "L_RECEIPTDATE" => ~D[1993-02-28],
+        "L_RETURNFLAG" => "A",
+        "L_SHIPDATE" => ~D[1993-01-31],
+        "L_SHIPINSTRUCT" => "DELIVER IN PERSON",
+        "L_SHIPMODE" => "AIR",
+        "L_SUPPKEY" => 4407,
+        "L_TAX" => "0.06"
+      }
+    ]
   end
 
-  defp json(data, conn, status) do
-    conn
-    |> Plug.Conn.put_resp_content_type("application/json")
-    |> Plug.Conn.send_resp(status, data)
+  test "Can query Snowflake with chunks and get results back with table", %{bypass: bypass} do
+    chunks = [
+      %{
+        "url" => "http://127.0.0.1:#{bypass.port}/s31",
+        "rowCount" => 2909,
+        "uncompressedSize" => 426_128,
+        "compressedSize" => 110_925
+      },
+      %{
+        "url" => "http://127.0.0.1:#{bypass.port}/s32",
+        "rowCount" => 247,
+        "uncompressedSize" => 36148,
+        "compressedSize" => 10189
+      }
+    ]
+
+    query_bypass_chunks(bypass, "testing/snowflake_s3_query_response.json", chunks)
+    s3_bypass(bypass, "s31", "testing/s3/response_1.json")
+
+    Req.new()
+    |> ReqSnowflake.attach(
+      username: "myuser",
+      password: "hunter2",
+      account_name: "elixir",
+      region: "us-east-1",
+      warehouse: "compute_wh",
+      role: "somerole",
+      database: "snowflake_sample_data",
+      schema: "tpch_sf1",
+      cache_token: false,
+      table: true
+    )
+    |> Req.post!(snowflake_query: "select * from snowflake_sample_data.tpch_sf1.lineitem limit 2")
+    |> Map.get(:body)
+    |> Table.to_rows()
+    |> Enum.slice(1, 1) == [
+      %{"L_ORDERKEY" => "193197", "L_PARTKEY" => "54440", "L_SUPPKEY" => "164196"}
+    ]
   end
+
+  #
+  #  # Snowflake sends back gzipped encoding, so gzip the response here we send back with bypass.
+  #  # Also send back some other headers s3 sends for goodluck.
+  #  defp json_gzip(data, conn, status) do
+  #    conn
+  #    |> Plug.Conn.put_resp_content_type("binary/octet-stream")
+  #    |> Plug.Conn.put_resp_header("content-encoding", "gzip")
+  #    |> Plug.Conn.put_resp_header("x-amz-id-2", "aaa")
+  #    |> Plug.Conn.put_resp_header("x-amz-request-id", "xxx")
+  #    |> Plug.Conn.put_resp_header("x-amz-server-side-encryption-customer-algorithm", "AES256")
+  #    |> Plug.Conn.put_resp_header("x-amz-server-side-encryption-customer-key-md5", "abcd")
+  #    |> Plug.Conn.put_resp_header("accept-ranges", "bytes")
+  #    |> Plug.Conn.send_resp(status, :zlib.gzip(data))
+  #  end
+  #
+  #  defp json(data, conn, status) do
+  #    conn
+  #    |> Plug.Conn.put_resp_content_type("application/json")
+  #    |> Plug.Conn.send_resp(status, data)
+  #  end
 end

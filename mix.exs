@@ -17,7 +17,8 @@ defmodule ReqSnowflake.MixProject do
         "test.all": :test,
         docs: :docs,
         "hex.publish": :docs
-      ]
+      ],
+      elixirc_paths: elixirc_paths(Mix.env())
     ]
   end
 
@@ -41,7 +42,7 @@ defmodule ReqSnowflake.MixProject do
       {:decimal, "~> 2.0"},
       {:req, "~> 0.3.0"},
       {:snowflake_arrow, github: "joshuataylor/snowflake_arrow"},
-      {:table, "~> 0.1.1", optional: true},
+      {:table, "~> 0.1.2", optional: true},
       {:jason, "~> 1.2", optional: true},
       {:jiffy, "~> 1.1", optional: true},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false, optional: true},
@@ -51,11 +52,16 @@ defmodule ReqSnowflake.MixProject do
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false, optional: true},
       {:tz, "~> 0.20.1"},
       {:tz_extra, "~> 0.20.1"},
-      {:parallel_stream, "~> 1.1"}
+      {:benchee, "~> 1.1", optional: true},
+      {:ezstd, "~> 1.0", optional: true}
     ]
   end
 
   def aliases do
     ["test.all": ["test --include integration"]]
   end
+
+  # Specifies which paths to compile per environment.
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 end

@@ -28,8 +28,9 @@ defmodule ReqSnowflake do
   alias Req.Request
   alias ReqSnowflake.Result
   alias ReqSnowflake.Snowflake
+  alias ReqSnowflake.JSONResponseMapping
 
-  @allowed_options ~w(snowflake_query arrow cache_token username password account_name region warehouse role database schema application_name bindings session_parameters parallel_downloads async async_poll async_poll_interval download_chunks return_dataframe json_library async_poll_timeout return_dataframe)a
+  @allowed_options ~w(snowflake_query arrow cache_token username password account_name region warehouse role database schema application_name bindings session_parameters parallel_downloads async async_poll async_poll_interval download_chunks return_dataframe json_library async_poll_timeout table cache_results)a
 
   @doc """
   Attaches to Req request, used for querying Snowflake.
@@ -43,11 +44,38 @@ defmodule ReqSnowflake do
   """
   @spec attach(Request.t(), keyword()) :: Request.t()
   def attach(%Request{} = request, options \\ []) do
+    default_opts = [
+      parallel_downloads: 5,
+      cache_token: true,
+      async: false,
+      download_chunks: true,
+      table: false,
+      cache_results: false
+    ]
+
+    options = Keyword.merge(default_opts, options)
+
     request
     |> Request.prepend_request_steps(snowflake_run: &snowflake_run/1)
     |> Request.register_options(@allowed_options)
     |> Request.merge_options(options)
   end
+
+  defp default_options(options) do
+    options
+    |> set_default_option(:parallel_downloads, 5)
+    |> set_default_option(:cache_token, true)
+    |> set_default_option(:async, false)
+    |> set_default_option(:download_chunks, true)
+    |> set_default_option(:table, false)
+    |> set_default_option(:cache_results, false)
+  end
+
+  defp set_default_option(options, key, value) when is_map_key(options, key) == false do
+    Map.put(options, key, value)
+  end
+
+  defp set_default_option(options, _, _), do: options
 
   defp snowflake_run(
          %Request{
@@ -128,14 +156,14 @@ defmodule ReqSnowflake do
              "rowtype" => row_type,
              "total" => total
            }
-         },
-         %{download_chunks: false}
+         } = d,
+         %{download_chunks: false} = options
        ) do
     %Result{
       success: true,
       rows: [],
       columns: map_columns(row_type),
-      num_rows: total
+      total_rows: total
     }
   end
 
@@ -150,271 +178,48 @@ defmodule ReqSnowflake do
        do: poll(options, query_id, 0)
 
   defp decode_body(
-         %{
-           "success" => true,
-           "data" => %{
-             "queryResultFormat" => "json",
-             "rowset" => [],
-             "rowtype" => row_type,
-             "total" => total,
-             "chunks" => chunks,
-             "chunkHeaders" => %{
-               "x-amz-server-side-encryption-customer-key" => key,
-               "x-amz-server-side-encryption-customer-key-md5" => md5
-             }
-           }
-         },
+         %{"success" => true, "data" => %{"queryResultFormat" => "json"}} = response,
          options
        ) do
-    rows = get_s3_json_rows(chunks, key, md5, row_type, options)
-
-    %Result{
-      success: true,
-      rows: rows,
-      columns: map_columns(row_type),
-      num_rows: total
-    }
-  end
-
-  defp decode_body(
-         %{
-           "success" => true,
-           "data" => %{
-             "queryResultFormat" => "json",
-             "rowtype" => row_type,
-             "total" => total,
-             "chunks" => chunks,
-             "chunkHeaders" => %{
-               "x-amz-server-side-encryption-customer-key" => key,
-               "x-amz-server-side-encryption-customer-key-md5" => md5
-             }
-           }
-         },
-         options
-       ) do
-    rows = get_s3_json_rows(chunks, key, md5, row_type, options)
-
-    %Result{
-      success: true,
-      rows: rows,
-      columns: map_columns(row_type),
-      num_rows: total
-    }
-  end
-
-  defp decode_body(
-         %{
-           "success" => true,
-           "data" => %{
-             "queryResultFormat" => "json",
-             "rowset" => rows,
-             "rowtype" => row_type,
-             "total" => total
-           }
-         },
-         _options
-       ) do
-    rows = process_json_row_data(rows, row_type) |> Enum.to_list()
-
-    %Result{
-      success: true,
-      rows: rows,
-      columns: map_columns(row_type),
-      num_rows: total
-    }
+    build_result(
+      response,
+      options
+    )
   end
 
   if Code.ensure_loaded?(SnowflakeArrow.Native) do
     defp decode_body(
-           %{
-             "success" => true,
-             "data" => %{
-               "queryResultFormat" => "arrow",
-               "rowsetBase64" => "",
-               "rowtype" => row_type,
-               "total" => total,
-               "chunks" => chunks,
-               "chunkHeaders" => %{
-                 "x-amz-server-side-encryption-customer-key" => key,
-                 "x-amz-server-side-encryption-customer-key-md5" => md5
-               }
-             }
-           },
+           %{"success" => true, "data" => %{"queryResultFormat" => "arrow"}} = response,
            options
          ) do
-      rows = arrow_rows(chunks, key, md5, options, nil)
-
-      %Result{
-        success: true,
-        rows: rows,
-        columns: map_columns(row_type),
-        num_rows: total
-      }
-    end
-
-    defp decode_body(
-           %{
-             "success" => true,
-             "data" => %{
-               "queryResultFormat" => "arrow",
-               "rowsetBase64" => base64,
-               "rowtype" => row_type,
-               "total" => total,
-               "chunks" => chunks,
-               "chunkHeaders" => %{
-                 "x-amz-server-side-encryption-customer-key" => key,
-                 "x-amz-server-side-encryption-customer-key-md5" => md5
-               }
-             }
-           },
-           options
-         )
-         when base64 != "" do
-      rows = arrow_rows(chunks, key, md5, options, Base.decode64!(base64))
-
-      %Result{
-        success: true,
-        rows: rows,
-        columns: map_columns(row_type),
-        num_rows: total
-      }
-    end
-
-    defp decode_body(
-           %{
-             "success" => true,
-             "data" => %{
-               "queryResultFormat" => "arrow",
-               "rowsetBase64" => base64,
-               "rowtype" => row_type,
-               "total" => total
-             }
-           },
-           _
-         )
-         when base64 != "" do
-      rows = decode_base64_arrow(Base.decode64!(base64))
-
-      %Result{
-        success: true,
-        rows: rows,
-        columns: map_columns(row_type),
-        num_rows: total
-      }
-    end
-
-    defp decode_body(
-           %{
-             "success" => true,
-             "data" => %{
-               "queryResultFormat" => "arrow",
-               "rowsetBase64" => "",
-               "rowtype" => row_type,
-               "total" => total
-             }
-           },
-           _
-         ) do
-      %Result{
-        success: true,
-        rows: [],
-        columns: map_columns(row_type),
-        num_rows: total
-      }
-    end
-
-    defp decode_base64_arrow(data) when is_binary(data) do
-      data
-      |> convert_or_append_arrow(nil)
-      |> Kernel.then(&SnowflakeArrow.to_owned(&1))
-      |> Kernel.then(&get_rows/1)
-    end
-
-    defp arrow_rows(chunks, key, md5, %{return_dataframe: true} = options, base64) do
-      with {:ok, ref} <- get_s3_arrow_rows_df(chunks, key, md5, options, base64) do
-        ref
-      end
-    end
-
-    defp arrow_rows(chunks, key, md5, options, base64),
-      do: get_s3_arrow_rows(chunks, key, md5, options, base64)
-
-    # Downloads all chunks using stream, then passes them to the arrow2 binding for processing.
-    defp get_s3_arrow_rows(chunks, key, md5, options, base64) do
-      get_s3_arrow_rows_df(chunks, key, md5, options, base64)
-      |> Kernel.then(&get_rows/1)
-    end
-
-    defp get_s3_arrow_rows_df(chunks, key, md5, options, nil) do
-      # get first item from chunk
-      data = get_s3(hd(chunks), key, md5)
-      reference = convert_or_append_arrow(data, nil)
-
-      chunks
-      |> List.delete_at(0)
-      |> ParallelStream.map(&get_s3(&1, key, md5),
-        num_workers: options[:parallel_downloads] || 5
+      build_result(
+        response,
+        options
       )
-      |> Stream.map(&convert_or_append_arrow(&1, reference))
-      |> Stream.run()
-      |> Kernel.then(fn _x -> SnowflakeArrow.to_owned(reference) end)
-    end
-
-    # repeated code :(
-    defp get_s3_arrow_rows_df(chunks, key, md5, options, base64) do
-      reference = convert_or_append_arrow(base64, nil)
-
-      chunks
-      |> ParallelStream.map(&get_s3(&1, key, md5),
-        num_workers: options[:parallel_downloads] || 5
-      )
-      |> Stream.map(&convert_or_append_arrow(&1, reference))
-      |> Stream.run()
-      |> Kernel.then(fn _x -> SnowflakeArrow.to_owned(reference) end)
-    end
-
-    defp get_rows({:ok, reference}) do
-      {:ok, columns} = SnowflakeArrow.get_column_names(reference)
-
-      columns
-      |> Enum.map(fn column ->
-        with {:ok, d} <- SnowflakeArrow.get_column(reference, column) do
-          d
-        end
-      end)
-      |> zip_columns()
-    end
-
-    defp zip_columns(columns) when length(columns) <= 100, do: ArrowUnzip.zip(columns)
-    defp zip_columns(columns), do: Enum.zip_with(columns, & &1)
-
-    defp convert_or_append_arrow(data, reference) when is_nil(reference) and is_binary(data) do
-      with {:ok, ref} <- SnowflakeArrow.convert_arrow_to_df(data) do
-        ref
-      end
-    end
-
-    defp convert_or_append_arrow(data, reference) when is_binary(data) do
-      with :ok <- SnowflakeArrow.append_snowflake_arrow_to_df(reference, data) do
-        reference
-      end
     end
   end
 
-  # Downloads all chunks using parallel stream, at the maximum parallel downloads, then flat maps the results.
+  # Downloads all chunks using Task.async_stream, mith max_concurrency set to the maximum parallel downloads, then flat maps the results.
   # Decoding from JSON to Elixir types is done for each chunk instead of at the end, as sometimes a
-  # dataset could be multiple gigabytes in size and doing it in chunks seems the more effecient way of doing things.
+  # dataset could be multiple gigabytes in size and doing it in chunks seems the more efficient way of doing things.
   # Maybe we should chunk the deserialising parts, but for for now the max size that'll be deserialised is ~50mb
-  # uncompressed JSON (max size from SF seems to be a 20mb gzipped file for JSON/Arrow).
-  defp get_s3_json_rows(chunks, key, md5, row_type, options) do
+  # uncompressed JSON (max size from Snowflake seems to be a 20mb gzipped file for JSON/Arrow).
+  defp get_s3_json_rows(chunks, key, md5, row_type, %{table: false} = options) do
     chunks
-    |> ParallelStream.map(&get_s3(&1, key, md5), num_workers: options[:parallel_downloads] || 5)
-    |> ParallelStream.map(fn json ->
-      json_decode!("[" <> json <> "]", options[:json_library] || Jason)
+    |> Task.async_stream(
+      &get_s3(&1, key, md5),
+      timeout: 180_000,
+      max_concurrency: options[:parallel_downloads]
+    )
+    |> Stream.flat_map(fn {:ok, json} ->
+      ReqSnowflake.JSONResponseMapping.json_decode!(json, options[:json_library] || Jason)
     end)
-    |> Stream.flat_map(& &1)
-    |> ParallelStream.map(&map_json_row(&1, row_type))
+    |> Stream.map(&JSONResponseMapping.map_json_row(&1, row_type))
     |> Enum.to_list()
+  end
+
+  defp get_s3_json_rows(_, _, _, _, _) do
+    []
   end
 
   defp decode_body(response, _), do: response
@@ -427,6 +232,35 @@ defmodule ReqSnowflake do
     "#{host}/queries/v1/query-request?requestId=#{uuid}"
   end
 
+  defp snowflake_query_body({query, []}, async) when is_binary(query) do
+    %{
+      sqlText: query,
+      sequenceId: 0,
+      bindings: nil,
+      bindStage: nil,
+      describeOnly: false,
+      parameters: %{},
+      describedJobId: nil,
+      isInternal: false,
+      asyncExec: async == true
+    }
+  end
+
+  defp snowflake_query_body({query, bindings}, async) when is_binary(query) do
+    %{
+      sqlText: query,
+      sequenceId: 0,
+      bindings: bindings,
+      bindStage: nil,
+      describeOnly: false,
+      parameters: %{},
+      describedJobId: nil,
+      isInternal: false,
+      asyncExec: async == true
+    }
+  end
+
+  @spec snowflake_query_body(String.t(), boolean()) :: map()
   defp snowflake_query_body(query, async) when is_binary(query) do
     %{
       sqlText: query,
@@ -441,6 +275,7 @@ defmodule ReqSnowflake do
     }
   end
 
+  @spec snowflake_query_body(String.t(), list) :: map()
   defp snowflake_insert_headers(query, bindings) when is_binary(query) and is_map(bindings) do
     %{
       sqlText: query,
@@ -458,8 +293,11 @@ defmodule ReqSnowflake do
   # Here we get the result from S3. Later if we find it's more beneficial to read directly from the gzip file in rust for arrow
   # instead of getting it here, we might want to split this into a separate function for JSON/Arrow. For now the performance is
   # fine to do the ungzip here.
-  defp get_s3(%{"url" => url}, encryption_key, encryption_key_md5) do
-    Req.new(url: url)
+  def get_s3(%{"url" => url}, encryption_key, encryption_key_md5),
+    do: get_s3(url, encryption_key, encryption_key_md5)
+
+  def get_s3(url, encryption_key, encryption_key_md5) when is_binary(url) do
+    Req.new(url: url, cache: true)
     |> Request.put_header("accept", "application/snowflake")
     |> Request.put_header("x-amz-server-side-encryption-customer-key", encryption_key)
     |> Request.put_header("x-amz-server-side-encryption-customer-key-md5", encryption_key_md5)
@@ -469,85 +307,10 @@ defmodule ReqSnowflake do
 
   defp process_json_row_data(rows, row_type) do
     rows
-    |> Enum.map(&map_json_row(&1, row_type))
+    |> Enum.map(&ReqSnowflake.JSONResponseMapping.map_json_row(&1, row_type))
   end
-
-  defp map_json_row(row, row_type) do
-    row
-    |> Enum.with_index()
-    |> Enum.map(fn {rr, column_no} -> decode_json_column(Enum.at(row_type, column_no), rr) end)
-  end
-
-  # Decodes a column type of null to nil
-  defp decode_json_column(%{"scale" => 0, "type" => "fixed", "byteLength" => nil}, nil), do: nil
-  defp decode_json_column(_, nil), do: nil
-
-  defp decode_json_column(%{"type" => "date"}, value) do
-    unix_time = String.to_integer(value) * 86400
-
-    case DateTime.from_unix(unix_time) do
-      {:ok, time} -> DateTime.to_date(time)
-      _ -> {:error, value}
-    end
-  end
-
-  defp decode_json_column(%{"type" => "timestamp_tz"}, value) do
-    # It's a timestamp nano with an offset in a space.
-    # Looks like "1588969216076000000 1440"
-    [timestamp_string, offset_string] = String.split(value, " ")
-    offset = String.to_integer(offset_string)
-
-    timestamp =
-      timestamp_string
-      |> String.replace(".", "")
-      |> String.to_integer()
-
-    # What we now do is take the offset, which should be an integer and minus 1440 from it.
-    offset = offset - 1440
-
-    # We now need to lookup all timezones with this offset, which will then be the actual timezone
-    # Offset is in minutes. If it is 0, we'll assume UTC.
-    timezone = ReqSnowflake.Timezone.convert(offset)
-
-    # I can't find
-    ReqSnowflake.Timezone.unix_timestamp(timestamp, timezone)
-  end
-
-  defp decode_json_column(%{"type" => timestamp}, value)
-       when timestamp in ["timestamp_ntz", "timestamp_ltz"] do
-    # The value before the dot is the unix timestamp, the value after is the nanoseconds
-    value
-    |> String.replace(".", "")
-    |> String.to_integer()
-    |> DateTime.from_unix!(:nanosecond)
-  end
-
-  # Decodes an integer column type
-  defp decode_json_column(%{"scale" => 0, "type" => "fixed", "byteLength" => nil}, value) do
-    case Integer.parse(value) do
-      {num, ""} ->
-        num
-
-      _ ->
-        value
-    end
-  end
-
-  # for everything else, just return the value
-  defp decode_json_column(_, value), do: value
 
   defp map_columns(row_type), do: Enum.map(row_type, fn %{"name" => name} -> name end)
-
-  # Get the json part and deserialise it. We use a function to decode here as the user may want to use their choice
-  # of library such as Jason, jiffy, Poison etc. Jiffy seems to have the best performance for this, where benchmarks
-  # show a 2x speedup over Jason, and much better memory use. But Jiffy is also a C Binding, so some users might be
-  # put off by this. It depends how much data you're downloading and decoding and your usecase.
-  defp json_decode!(data, library) do
-    case library do
-      :jiffy -> :jiffy.decode(data, [:use_nil])
-      x -> x.decode!(data)
-    end
-  end
 
   defp poll(options, query_id, iteration) do
     case process_query_complete(monitor_query_by_id(options, query_id).body) do
@@ -599,4 +362,234 @@ defmodule ReqSnowflake do
   defp process_query_complete(%{"data" => %{"queries" => [%{"status" => _}]}}), do: true
   defp process_query_complete(%{"data" => %{"queries" => []}}), do: false
   defp process_query_complete(_), do: true
+
+  # Stupid temporary hack
+  defp chunks(
+         %{
+           "data" => %{
+             "chunks" => chunks,
+             "chunkHeaders" => %{
+               "x-amz-server-side-encryption-customer-key" => key,
+               "x-amz-server-side-encryption-customer-key-md5" => md5
+             }
+           }
+         },
+         offset
+       ) do
+    Enum.map_reduce(chunks, %{prev: offset + 1}, fn chunk, acc ->
+      row_from = if acc.prev == nil, do: 1, else: acc.prev
+
+      c = %ReqSnowflake.Chunk{
+        compressed_size: chunk["compressedSize"],
+        row_count: chunk["rowCount"],
+        uncompressed_size: chunk["uncompressedSize"],
+        url: chunk["url"],
+        row_from: row_from,
+        row_to: row_from + chunk["rowCount"] - 1
+      }
+
+      {c, Map.put(acc, :prev, chunk["rowCount"] + row_from)}
+    end)
+    |> elem(0)
+    |> Enum.sort_by(fn c -> c.row_from end)
+  end
+
+  defp chunks(_, _), do: []
+
+  # Process JSON.
+  # If the user has asked for rows back (table as false), return the rows here.
+  defp build_result(
+         %{
+           "success" => true,
+           "data" => %{
+             "queryResultFormat" => "json",
+             "rowset" => [],
+             "rowtype" => row_type,
+             "total" => total,
+             "queryId" => query_id,
+             "chunks" => chunks,
+             "chunkHeaders" => %{
+               "x-amz-server-side-encryption-customer-key" => key,
+               "x-amz-server-side-encryption-customer-key-md5" => md5
+             }
+           }
+         },
+         %{table: false} = options
+       ) do
+    rows = get_s3_json_rows(chunks, key, md5, row_type, options)
+
+    %Result{
+      rows: rows,
+      format: "json",
+      total_rows: total,
+      query_id: query_id,
+      success: true,
+      columns: map_columns(row_type),
+      options: options
+    }
+  end
+
+  defp build_result(
+         %{
+           "success" => true,
+           "data" => %{
+             "queryResultFormat" => "json",
+             "rowset" => rows,
+             "rowtype" => row_type,
+             "total" => total,
+             "queryId" => query_id
+           }
+         } = response,
+         %{table: false} = options
+       )
+       when not is_map_key(response, "chunks") do
+    rows = process_json_row_data(rows, row_type)
+
+    %Result{
+      rows: rows,
+      format: "json",
+      total_rows: total,
+      query_id: query_id,
+      success: true,
+      columns: map_columns(row_type)
+    }
+  end
+
+  defp build_result(
+         %{
+           "success" => true,
+           "data" => %{
+             "queryResultFormat" => "json",
+             "rowset" => rows,
+             "rowtype" => row_type,
+             "total" => total,
+             "queryId" => query_id
+           }
+         } = response,
+         %{table: true} = options
+       )
+       when not is_map_key(response, "chunks") do
+    rows = process_json_row_data(rows, row_type)
+
+    %Result{
+      format: "json",
+      total_rows: total,
+      query_id: query_id,
+      success: true,
+      columns: map_columns(row_type),
+      initial_rowset: rows,
+      chunks: chunks(response, length(rows)),
+      chunk_data: %{
+        key: response["data"]["chunkHeaders"]["x-amz-server-side-encryption-customer-key"],
+        md5: response["data"]["chunkHeaders"]["x-amz-server-side-encryption-customer-key-md5"]
+      },
+      options: options
+    }
+  end
+
+  # arrow
+  if Code.ensure_loaded?(SnowflakeArrow.Native) do
+    defp build_result(
+           %{
+             "success" => true,
+             "data" => %{
+               "queryResultFormat" => "arrow",
+               "rowsetBase64" => base64,
+               "rowtype" => row_type,
+               "total" => total,
+               "queryId" => query_id
+             }
+           } = response,
+           %{table: false} = options
+         ) do
+      # @todo This is slow. Use [a|b] then flatten later.
+      rows = initial_rowset_rows(response) ++ get_arrow_chunks(response, options)
+
+      %Result{
+        format: "arrow",
+        total_rows: total,
+        query_id: query_id,
+        success: true,
+        columns: map_columns(row_type),
+        rows: rows,
+        options: options
+      }
+    end
+
+    # For table, we can do a catch-all as we can build dynamically
+    defp build_result(
+           %{
+             "success" => true,
+             "data" => %{
+               "queryResultFormat" => "arrow",
+               "rowtype" => row_type,
+               "total" => total,
+               "queryId" => query_id
+             }
+           } = response,
+           %{table: true} = options
+         ) do
+      rows = initial_rowset_rows(response)
+
+      %Result{
+        format: "arrow",
+        total_rows: total,
+        query_id: query_id,
+        success: true,
+        columns: map_columns(row_type),
+        initial_rowset: rows,
+        chunks: chunks(response, length(rows)),
+        chunk_data: %{
+          key: response["data"]["chunkHeaders"]["x-amz-server-side-encryption-customer-key"],
+          md5: response["data"]["chunkHeaders"]["x-amz-server-side-encryption-customer-key-md5"]
+        },
+        options: options
+      }
+    end
+
+    defp initial_rowset_rows(%{"data" => %{"rowsetBase64" => rows}} = response) do
+      response
+      |> initial_rowset()
+      |> Enum.zip_with(& &1)
+    end
+
+    defp initial_rowset_rows(_), do: []
+
+    defp initial_rowset(%{"data" => %{"rowsetBase64" => rows}})
+         when rows != "" and not is_nil(rows) do
+      Base.decode64!(rows)
+      |> SnowflakeArrow.convert_snowflake_arrow_stream()
+    end
+
+    defp initial_rowset(_), do: []
+
+    # Downloads all chunks using stream, then passes them to the arrow2 binding for processing.
+    defp get_arrow_chunks(
+           %{
+             "data" => %{
+               "chunks" => chunks,
+               "chunkHeaders" => %{
+                 "x-amz-server-side-encryption-customer-key" => key,
+                 "x-amz-server-side-encryption-customer-key-md5" => md5
+               }
+             }
+           },
+           options
+         ) do
+      chunks
+      |> Task.async_stream(&get_s3(&1, key, md5),
+        timeout: 180_000,
+        max_concurrency: options[:parallel_downloads]
+      )
+      |> Stream.flat_map(fn {:ok, chunk} ->
+        SnowflakeArrow.convert_snowflake_arrow_stream(chunk)
+        |> Enum.zip_with(& &1)
+      end)
+      |> Enum.to_list()
+    end
+
+    defp get_arrow_chunks(_, _), do: []
+  end
+
+  defp build_result(response, _options), do: response
 end

@@ -18,6 +18,7 @@ Also has support for both pure-Elixir using JSON, or decoding Arrow files via [s
 - [What this is](#what-this-is)
 - [Features](#features)
 - [Options](#options)
+- [Table Integration](#table-integration)
 - [Short term Roadmap](#short-term-roadmap)
 - [Medium term roadmap](#medium-term-roadmap)
 - [Thanks](#thanks)
@@ -43,11 +44,11 @@ Req.new()
   session_parameters: %{} # Passing in session parameters from
   parallel_downloads: 10 # optional, but recommended. Defaults to 5 (what the other connectors default to).
 )
-|> Req.post!(snowflake_query: "select L_ORDERKEY, L_PARTKEY from snowflake_sample_data.tpch_sf1.lineitem limit 2").body
+|> Req.post!(query: "select L_ORDERKEY, L_PARTKEY from snowflake_sample_data.tpch_sf1.lineitem limit 2").body
 #=>
 # %ReqSnowflake.Result{
 #   columns: ["L_ORDERKEY", "L_PARTKEY"],
-#   num_rows: 2,
+#   total_rows: 2,
 #   rows: [[3_000_001, 14406], [3_000_002, 34422]],
 #   success: true
 # }
@@ -65,13 +66,13 @@ Req.new()
   schema: "myschema" # optional
 )
 |> Req.post!(
-  snowflake_query: "INSERT INTO \"foo\".\"bar\".\"baz\" (\"hello\") VALUES (?)",
+  query: "INSERT INTO \"foo\".\"bar\".\"baz\" (\"hello\") VALUES (?)",
   bindings: %{"1" => %{type: "TEXT", value: "xxx"}}
 )
 #=>
 # %ReqSnowflake.Result {
 #   columns: ["number of rows inserted"],
-#   num_rows: 1,
+#   total_rows: 1,
 #   rows: [[1]],
 #   success: true
 # }
@@ -173,9 +174,19 @@ There are a lot of options that you can pass in, and you can also pass in [Snowf
 
   Whether to download the chunks or just return the base64.
 
-- return_dataframe **boolean** *optional*
+- table **boolean** *optional*
 
-  Whether to return the results as rows when using Arrow or return the dataframe.
+  If true, will return the results with the expectation you will use [table]() to process the results.
+  By default this is `false`. For kino_db, this is set as `true` as this uses Table by default.
+
+  If you are dealing with a lot of data, it's **highly recommended** to use Table as you can stream the chunks
+  out as you need them, saving you memory, CPU and bandwidth.
+
+- cache_results **boolean *optional*
+
+  Whether to cache the downloaded chunks, if you are re-iterating over the same dataset this will be cached locally
+  so that you don't have to redownload the data. This is false by default, but enabled for kino_db as when paging
+  we don't want to redownload the chunk.
 
 - json_library **module** *optional*
 
@@ -183,10 +194,55 @@ There are a lot of options that you can pass in, and you can also pass in [Snowf
   Examples: `json_library: Jason` or `json_library: :jiffy`. :jiffy is an atom because it's an Erlang library.
   Defaults to JSON.
 
+## Table Integration
+Using [table](https://github.com/dashbitco/table) makes it incredibly easy to manipulate and stream over the data. If you
+download all the chunks at once, you might end up using a lot of memory if you do this over millions of rows.
+
+With table, you can enumerate over the data and only the relevant chunks will be downloaded and decoded.
+
+To get results 0-200, you could do the following:
+```elixir
+Req.new()
+|> ReqSnowflake.attach(
+# your details here!
+)
+|> Req.post!(
+  snowflake_query: "select * from foo.bar.baz"
+)
+|> Map.get(:body)
+|> Table.to_rows()
+|> Enum.slice(0, 200)
+```
+Which results in the following:
+```elixir
+[
+%{
+  "ROW_NUMBER" => 688156,
+  "SF_ARRAY" => nil,
+  "SF_BOOLEAN" => false,
+  "SF_DATE" => ~D[2024-04-19],
+  "SF_DECIMAL_38_2" => 2146.89,
+  "SF_FLOAT" => nil,
+  "SF_FLOAT_TWO_PRECISION" => nil,
+  "SF_INTEGER" => 8562093803,
+  "SF_OBJECT" => nil,
+  "SF_TIMESTAMP" => ~N[2025-04-20 07:31:58.064000],
+  "SF_TIMESTAMP_LTZ" => nil,
+  "SF_TIMESTAMP_NTZ" => nil,
+  "SF_VARCHAR" => "ylPPdH0leSF3f5lK9kEC",
+  "SF_VARIANT_JSON" => "{\n  \"key_eV6kL4tVYXLFrEyyDNol\": true\n}"
+},
+...
+]
+```
+
+## kino_db
+kino_db integration is supported out of the box, which allows you to connect to an account, create queries and slice the data.
+It will only download the chunks that it needs, thanks to slicing. This allows you to see results in the table extremely quickly.
+
 ## Short term Roadmap
 - Add this to `db_connection_snowflake` as a generic Snowflake library for db_connection
 - Add this to `ecto_snowflake` as a Snowflake library for Ecto.
-- Integrate with kino_db
 
 ## Medium term roadmap
 - Add support for MFA

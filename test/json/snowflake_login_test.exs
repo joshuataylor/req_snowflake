@@ -1,26 +1,7 @@
 defmodule ReqSnowflakeLogin.LoginTest do
-  use ExUnit.Case, async: false
-
-  setup do
-    bypass = Bypass.open()
-    Application.put_env(:req_snowflake, :snowflake_hostname, "127.0.0.1")
-    Application.put_env(:req_snowflake, :snowflake_url, "http://127.0.0.1:#{bypass.port}")
-    Application.put_env(:req_snowflake, :snowflake_uuid, "0000000-0000-0000-0000-000000000000")
-
-    {:ok, %{bypass: bypass}}
-  end
+  use ReqSnowflake.SnowflakeCase, async: false
 
   test "Can login to Snowflake using valid credentials", %{bypass: bypass} do
-    Bypass.expect(bypass, "POST", "/session/v1/login-request", fn conn ->
-      File.read!(
-        Path.join([
-          :code.priv_dir(:req_snowflake),
-          "testing/snowflake_valid_login_response.json"
-        ])
-      )
-      |> json(conn, 200)
-    end)
-
     Bypass.expect(bypass, "POST", "/console/bootstrap-data-request", fn conn ->
       File.read!(
         Path.join([
