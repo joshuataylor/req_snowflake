@@ -47,11 +47,11 @@ defmodule ReqSnowflake.MixProject do
       {:jiffy, "~> 1.1", optional: true},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false, optional: true},
       {:elixir_uuid, "~> 1.2"},
-      {:dialyxir, "~> 1.0", only: :dev, runtime: false, optional: true},
+      {:dialyxir, "~> 1.1", only: :dev, runtime: false, optional: true},
       {:bypass, "~> 2.1", only: :test},
       {:mix_test_watch, "~> 1.0", only: [:dev, :test], runtime: false, optional: true},
-      {:tz, "~> 0.20.1"},
-      {:tz_extra, "~> 0.20.1"},
+      {:tz, "~> 0.21.1"},
+      {:tz_extra, "~> 0.21.1"},
       {:benchee, "~> 1.1", optional: true},
       {:ezstd, "~> 1.0", optional: true}
     ]
